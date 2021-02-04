@@ -1,0 +1,1 @@
+from .progeny import getModel
