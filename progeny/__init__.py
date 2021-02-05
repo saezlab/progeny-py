@@ -1,1 +1,1 @@
-from .progeny import getModel
+from .progeny import getModel, run

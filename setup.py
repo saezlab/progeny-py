@@ -9,6 +9,9 @@ setup(
    url='https://github.com/saezlab/progeny-py',
    packages=['progeny'], 
    license='LICENSE.txt',
-   include_package_data=True,
-   package_data={'': ['data/model_human_full.pkl']}
+   package_data={'progeny': ['data/model_human_full.pkl', 'data/model_mouse_full.pkl']},
+   install_requires=[
+        'anndata',
+        'scanpy',
+        'numpy']
 )
