@@ -9,8 +9,8 @@ import seaborn as sns
 
 def plot_matrixplot(adata, groupby, cmap='coolwarm', ax=None):
     # Get progeny data
-    X = adata.obsm['X_progeny']
-    p_names = adata.uns['progeny']
+    X = np.array(adata.obsm['progeny'])
+    p_names = adata.obsm['progeny'].columns.tolist()
     # Get group categroies
     cats = adata.obs[groupby].cat.categories
     # Compute mean for each group
@@ -73,7 +73,7 @@ def run(data, scale=True, organism="Human", top=100, inplace=True):
     data
         If `AnnData`, the annotated data matrix of shape `n_obs` × `n_vars`.
         Rows correspond to cells and columns to genes.
-        If `data frame`, the annotated data matrix of shape `n_vars` × `n_obs`.
+        If `pandas` data frame, the annotated data matrix of shape `n_vars` × `n_obs`.
     scale:
         Scale the resulting pathway activities.
     organism:
@@ -81,8 +81,7 @@ def run(data, scale=True, organism="Human", top=100, inplace=True):
     top:
         Number of top significant genes in the progeny model to use.
     inplace:
-        Whether to update `adata` or return dictionary with normalized copies of
-        `adata.X` and `adata.layers`.
+        Whether to update `adata` or return pandas df of activities.
 
     Returns
     -------
@@ -111,13 +110,15 @@ def run(data, scale=True, organism="Human", top=100, inplace=True):
     
     if scale:
         result = (result - np.mean(result, axis=0)) / np.std(result, axis=0)
+        
+    # Store in df
+    result = pd.DataFrame(result, columns=model.columns, index=df.columns)
 
-    if isinstance(data, AnnData):
+    if isinstance(data, AnnData) and inplace:
         # Update AnnData object
-        data.obsm['X_progeny'] = result
-        data.uns['progeny'] = model.columns
+        data.obsm['progeny'] = result
     else:
         # Return dataframe object
-        data = pd.DataFrame(result, columns=model.columns, index=df.columns)
+        data = result
     
     return data if not inplace else None
