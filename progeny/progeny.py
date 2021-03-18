@@ -111,6 +111,9 @@ def run(data, scale=True, organism="Human", top=100, inplace=True):
     if scale:
         result = (result - np.mean(result, axis=0)) / np.std(result, ddof=1, axis=0)
         
+    # Remove nans
+    result[np.isnan(result)] = 0
+        
     # Store in df
     result = pd.DataFrame(result, columns=model.columns, index=df.columns)
 
