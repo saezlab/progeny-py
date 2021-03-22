@@ -98,6 +98,9 @@ def run(data, scale=True, organism="Human", top=100, inplace=True):
                                    columns=data.raw.obs_names)
     else:
         df = data
+        
+    assert df.shape[1] <= 1 and scale, \
+    'If there is only one observation no scaling can be performed!'
 
     # Get progeny model
     model = getModel(organism, top=top)
@@ -109,7 +112,9 @@ def run(data, scale=True, organism="Human", top=100, inplace=True):
     result = np.array(df.loc[common_genes].T.dot(model.loc[common_genes,]))
     
     if scale:
-        result = (result - np.mean(result, axis=0)) / np.std(result, ddof=1, axis=0)
+        std = np.std(result, ddof=1, axis=0)
+        std[std == 0] = 1
+        result = (result - np.mean(result, axis=0)) / std
         
     # Remove nans
     result[np.isnan(result)] = 0
