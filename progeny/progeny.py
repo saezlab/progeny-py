@@ -99,7 +99,7 @@ def run(data, scale=True, organism="Human", top=100, inplace=True):
     else:
         df = data
         
-    assert df.shape[1] <= 1 and scale, \
+    assert not (df.shape[1] <= 1 and scale), \
     'If there is only one observation no scaling can be performed!'
 
     # Get progeny model
