@@ -87,29 +87,34 @@ def run(data, scale=True, organism="Human", top=100, inplace=True):
     -------
     Returns pathway activities for each sample.
     """
-    
+
+
     # Transform to df if AnnData object is given
     if isinstance(data, AnnData):
-        if data.raw is None:
-            df = pd.DataFrame(np.transpose(data.X), index=data.var.index, 
-                                   columns=data.obs.index)
+        if data.raw is not None:
+            expr = data.raw.X.T
+            var_names = data.raw.var_names
+            obs_names = data.obs_names
         else:
-            df = pd.DataFrame(np.transpose(data.raw.X.toarray()), index=data.raw.var.index, 
-                                   columns=data.raw.obs_names)
+            expr = data.X.T
+            var_names = data.var_names
+            obs_names = data.obs_names
     else:
-        df = data
+        expr = data.values
+        var_names = data.index
+        obs_names = data.columns
         
-    assert not (df.shape[1] <= 1 and scale), \
-    'If there is only one observation no scaling can be performed!'
+    assert not (expr.shape[1] <= 1 and scale), \
+        'If there is only one observation no scaling can be performed!'
 
     # Get progeny model
     model = getModel(organism, top=top)
     
     # Check overlap of genes
-    common_genes = np.array(model.index.intersection(df.index).to_list())
-    
+    var_mask = np.isin(var_names, model.index)
+     
     # Matrix multiplication
-    result = np.array(df.loc[common_genes].T.dot(model.loc[common_genes,]))
+    result = np.array(expr[var_mask, :].T.dot(model.loc[var_names[var_mask],]))
     
     if scale:
         std = np.std(result, ddof=1, axis=0)
@@ -120,7 +125,7 @@ def run(data, scale=True, organism="Human", top=100, inplace=True):
     result[np.isnan(result)] = 0
         
     # Store in df
-    result = pd.DataFrame(result, columns=model.columns, index=df.columns)
+    result = pd.DataFrame(result, columns=model.columns, index=obs_names)
 
     if isinstance(data, AnnData) and inplace:
         # Update AnnData object
