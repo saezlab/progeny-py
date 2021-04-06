@@ -1,1 +1,1 @@
-from .progeny import getModel, run, plot_matrixplot
+from .progeny import getModel, run, extract

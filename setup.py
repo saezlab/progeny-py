@@ -13,5 +13,6 @@ setup(
    install_requires=[
         'anndata',
         'scanpy',
-        'numpy']
+        'numpy',
+        'pandas']
 )
