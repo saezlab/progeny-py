@@ -14,5 +14,7 @@ setup(
         'anndata',
         'scanpy',
         'numpy',
-        'pandas']
+        'pandas',
+        'tqdm'
+   ]
 )
