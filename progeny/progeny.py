@@ -25,9 +25,6 @@ def load_model(organism = "Human", top=None):
     -------
     Returns DataFrame with gene weights for each pathway.
     """
-    if type(top) != int:
-        raise ValueError("top should be an integer value")
-    
     # Set model path
     path = 'data'
     fname = 'model_'
