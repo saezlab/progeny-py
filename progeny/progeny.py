@@ -41,7 +41,8 @@ def load_model(organism = "Human", top=None):
        
     # Select top n genes per pathway by lowest p values
     model = full_model.sort_values(['pathway', 'p.value'])
-    model = model.groupby('pathway').head(top)
+    if top is not None:
+        model = model.groupby('pathway').head(top)
     model = model.pivot_table(index='gene', columns='pathway', values='weight', fill_value=0)
     
     return model
