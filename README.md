@@ -6,8 +6,12 @@ In this implementation, PROGENy uses the [scanpy](https://github.com/theislab/sc
 ## Installation
 The package can easly be installed using pip
 ```
-pip install git+https://github.com/saezlab/progeny-py.git
+pip install progeny-py
 ```
+
+## Examples
+Jupyter notebooks explaining the method and the package can be found in the `example/` directory
+
 
 ## Citing PROGENy
 
