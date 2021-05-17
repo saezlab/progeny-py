@@ -71,7 +71,7 @@ def extract(adata, obsm_key='progeny'):
     return pw_adata
 
 
-def process_input(data, use_raw=False):
+def process_input(data, use_raw=False, use_hvg=False):
     """
     Processes different input types so that they can be used downstream. 
     
@@ -81,6 +81,8 @@ def process_input(data, use_raw=False):
         Annotated data matrix or DataFrame
     use_raw
         If data is an AnnData object, whether to use values stored in `.raw`.
+    use_hvg
+        If data is an AnnData object, whether to only use high variable genes.
     
     Returns
     -------
@@ -95,12 +97,20 @@ def process_input(data, use_raw=False):
             genes = genes[idx]
             samples = data.obs.index
             X = data.X[:,idx]
+            if use_hvg:
+                hvg_msk = data.var.loc[genes].highly_variable
+                X = X[:,hvg_msk]
+                genes = genes[hvg_msk]
         else:
             genes = np.array(data.raw.var.index)
             idx = np.argsort(genes)
             genes = genes[idx]
             samples= data.raw.obs_names
             X = data.raw.X[:,idx]
+            if use_hvg:
+                hvg_msk = data.raw.var.loc[genes].highly_variable
+                X = X[:,hvg_msk]
+                genes = genes[hvg_msk]
     elif isinstance(data, pd.DataFrame):
         genes = np.array(data.columns)
         idx = np.argsort(genes)
@@ -112,19 +122,64 @@ def process_input(data, use_raw=False):
     return genes, samples, X
 
 
-def mean_expr(X, M):
+def dot_mult(X, M):
     # Run matrix mult
     pw_act = np.asarray(X.dot(M))
     return pw_act
 
 
-def run(data, model, center=True, num_perm=0, norm=True, scale=True, scale_axis=0, inplace=True, use_raw=False):
+def scale_arr(X, scale_axis):
+    std = np.std(X, ddof=1, axis=scale_axis)
+    std[std == 0] = 1
+    mean = np.mean(X, axis=scale_axis)
+    if scale_axis == 0:
+        X = (X - mean) / std
+    elif scale_axis == 1:
+            X = (X - mean.reshape(-1,1)) / std.reshape(-1,1)
+    return X
+
+
+def run(data, model, center=True, num_perm=0, norm=True, scale=True, scale_axis=0, inplace=True, 
+        use_raw=False, use_hvg=False, obsm_key='progeny', min_size=5):
     """
     Computes pathway activity based on transcription data using progeny 
     (Schubert 2018) gene weights.
+    
+    Parameters
+    ----------
+    data
+        Annotated data matrix or DataFrame.
+    model
+        PROGENy model in DataFrame format.
+    center
+        Whether to center gene expression by cell/sample.
+    num_perm
+        Number of permutations to calculate p-vals of random activities.
+    norm
+        Whether to normalize activities per regulon size to correct for large regulons.
+    scale
+        Whether to scale the final activities.
+    scale_axis
+        0 to scale per feature, 1 to scale per cell/sample.
+    inplace
+        If `data` is an AnnData object, whether to update `data` or return a DataFrame.
+    use_raw
+        If data is an AnnData object, whether to use values stored in `.raw`.
+    use_hvg
+        If data is an AnnData object, whether to only use high variable genes.
+    obsm_key
+        `.osbm` key where pathway activities will be stored.
+    min_size
+        Pathways with regulons with less targets than `min_size` will be ignored.
+    
+    Returns
+    -------
+    Returns a DataFrame with pathway activities or adds it to the `.obsm` key 'dorothea' 
+    of the input AnnData object, depending on `inplace` and input data type.
     """
+    
     # Get genes, samples/pathways and matrices from data and regnet
-    x_genes, x_samples, X = process_input(data, use_raw=use_raw)
+    x_genes, x_samples, X = process_input(data, use_raw=use_raw, use_hvg=use_hvg)
     
     assert len(x_genes) == len(set(x_genes)), 'Gene names are not unique'
 
@@ -141,7 +196,6 @@ def run(data, model, center=True, num_perm=0, norm=True, scale=True, scale_axis=
     # Subset by common genes
     common_genes = np.sort(list(set(m_genes) & set(x_genes)))
     
-        
     target_fraction = len(common_genes) / len(m_genes)
     assert target_fraction > .05, f'Too few ({len(common_genes)}) genes found. \
     Make sure you are using the correct organism.'
@@ -151,18 +205,22 @@ def run(data, model, center=True, num_perm=0, norm=True, scale=True, scale_axis=
     idx_x = np.searchsorted(x_genes, common_genes)
     X = X[:,idx_x]
     M = model.loc[common_genes].values
-
-    if center:
-        X = X - np.mean(X, axis=0)
+        
+    # Check min size and filter
+    msk_size = np.sum(M != 0, axis=0) < min_size
+    num_small_reg = np.sum(msk_size)
+    if num_small_reg > 0:
+        print(f'{num_small_reg} Pathways with < {min_size} targets')
+        M[:, msk_size] = 0
 
     # Run matrix mult
-    estimate = mean_expr(X, M)
+    estimate = dot_mult(X, M)
     
     # Permutations
     if num_perm > 0:
         pvals = np.zeros(estimate.shape)
         for i in tqdm(range(num_perm)):
-            perm = mean_expr(X, default_rng(seed=i).permutation(M))
+            perm = dot_mult(X, default_rng(seed=i).permutation(M))
             pvals += np.abs(perm) > np.abs(estimate)
         pvals = pvals / num_perm
         pvals[pvals == 0] = 1/num_perm
@@ -180,20 +238,14 @@ def run(data, model, center=True, num_perm=0, norm=True, scale=True, scale_axis=
     
     # Scale output
     if scale:
-        std = np.std(pw_act, ddof=1, axis=scale_axis)
-        std[std == 0] = 1
-        mean = np.mean(pw_act, axis=scale_axis)
-        if scale_axis == 0:
-            pw_act = (pw_act - mean) / std
-        elif scale_axis == 1:
-            pw_act = (pw_act - mean.reshape(-1,1)) / std.reshape(-1,1)
+        pw_act = scale_arr(pw_act, scale_axis)
     
     # Store in df
     result = pd.DataFrame(pw_act, columns=m_path, index=x_samples)
     
     if isinstance(data, AnnData) and inplace:
         # Update AnnData object
-        data.obsm['progeny'] = result
+        data.obsm[obsm_key] = result
     else:
         # Return dataframe object
         data = result
@@ -255,12 +307,13 @@ def rank_pws_groups(adata, groupby, group, reference='all'):
     results = []
     for i in np.arange(len(features)):
         stat, pval = ranksums(adata.X[g_msk,i], adata.X[ref_msk,i])
-        results.append([features[i], group, reference, stat, pval])
+        mc = np.mean(adata.X[g_msk,i]) - np.mean(adata.X[ref_msk,i])
+        results.append([features[i], group, reference, stat, mc, pval])
 
     # Tranform to df
     results = pd.DataFrame(
         results, 
-        columns=['name', 'group', 'reference', 'statistic', 'pval']
+        columns=['name', 'group', 'reference', 'statistic', 'meanchange', 'pval']
     ).set_index('name')
     
     # Correct pvalues by FDR
@@ -271,5 +324,6 @@ def rank_pws_groups(adata, groupby, group, reference='all'):
     results['pval_adj'] = pvals_adj
     
     # Sort by statistic
-    results = results.sort_values('statistic', ascending=False)
+    results = results.sort_values('meanchange', ascending=False)
     return results
+
