@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+from scipy.sparse import csr_matrix
 import scanpy as sc
 from anndata import AnnData
 import pickle
@@ -119,7 +120,7 @@ def process_input(data, use_raw=False, use_hvg=False):
         X = np.array(data)[:,idx]
     else:
         raise ValueError('Input must be AnnData or pandas DataFrame.')
-    return genes, samples, X
+    return genes, samples, csr_matrix(X)
 
 
 def dot_mult(X, M):
