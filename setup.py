@@ -7,7 +7,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name='progeny-py',
-    version='1.0.3',
+    version='1.0.4',
     author='Pau Badia i Mompel',
     author_email="pau.badia@uni-heidelberg.de",
     description='progeny-py is a python package to compute pathway activity \

@@ -139,6 +139,15 @@ def scale_arr(X, scale_axis):
     return X
 
 
+def center_arr(X):
+    X = X.copy()
+    sums = np.squeeze(X.sum(1).A)
+    counts = np.diff(X.tocsr().indptr)
+    means = sums/counts
+    X.data -= np.repeat(means, counts)
+    return X
+
+
 def run(data, model, center=True, num_perm=0, norm=True, scale=True, scale_axis=0, inplace=True, 
         use_raw=False, use_hvg=False, obsm_key='progeny', min_size=5):
     """
@@ -184,7 +193,7 @@ def run(data, model, center=True, num_perm=0, norm=True, scale=True, scale_axis=
     assert len(x_genes) == len(set(x_genes)), 'Gene names are not unique'
 
     if center:
-        X = X - np.mean(X, axis=1).reshape(-1,1)
+        X = center_arr(X)
 
     # Sort targets (rows) alphabetically
     model = model.sort_index()
